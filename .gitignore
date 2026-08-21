@@ -1,0 +1,6 @@
+# This stops junk/huge folders from ever being uploaded to GitHub.
+node_modules/
+dist/
+.env
+__pycache__/
+*.db
