@@ -1,0 +1,104 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import 'tailwindcss';
+
+@theme inline {
+  --color-primary: #2196C9;
+  --color-primary-dark: #1778A8;
+  --color-primary-light: #E8F4FA;
+  --color-success: #1FA563;
+  --color-danger: #DC3545;
+  --color-warning: #F59E0B;
+  --color-bg: #EFF6FB;
+  --color-card: #FFFFFF;
+  --color-border: #D4E5F0;
+  --color-text: #1A2B3C;
+  --color-text-secondary: #5A7080;
+  --color-text-muted: #9AAFBF;
+  --color-sidebar: #0F2133;
+  --color-sidebar-hover: #1A3348;
+  --color-sidebar-active: #2196C9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: #EFF6FB;
+  color: #1A2B3C;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Hide scrollbars by default, show on hover */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #D4E5F0;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9AAFBF;
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  body {
+    background: white;
+  }
+}
+
+
+/* App-wide interaction and accessibility polish */
+button, input, select, textarea {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(33, 150, 201, 0.22);
+  outline-offset: 1px;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 1100px) {
+  aside {
+    width: 208px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  aside {
+    display: none !important;
+  }
+
+  main {
+    width: 100%;
+  }
+
+  table {
+    min-width: 760px;
+  }
+}

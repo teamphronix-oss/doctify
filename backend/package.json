@@ -1,0 +1,22 @@
+{
+  "name": "doctify-backend",
+  "version": "1.0.0",
+  "description": "Doctify OPD Patient Record System - backend API",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node --experimental-sqlite src/index.js",
+    "dev": "node --experimental-sqlite --watch src/index.js",
+    "seed": "node --experimental-sqlite src/db/seed.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "archiver": "^8.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "pdfkit": "^0.20.2",
+    "xlsx": "^0.18.5"
+  }
+}

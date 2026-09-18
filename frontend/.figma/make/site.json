@@ -1,0 +1,10 @@
+{
+  "description": "Streamlines outpatient record management for multi-clinic use, enabling doctors and staff to efficiently handle patient data, prescriptions, and reports.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
