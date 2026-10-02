@@ -1,5 +1,10 @@
 import { useState } from 'react';
 import { Button, Input } from '../components/ui';
+
+// EDIT THIS: how a doctor should reach you to get their PIN reset.
+// Shown when they click "Forgot PIN?" below - no email/OTP flow by
+// design, since only the admin (you) can reset a PIN (see backend/src/db/resetPin.js).
+const ADMIN_CONTACT = 'Call/WhatsApp +91-XXXXXXXXXX or email you@example.com';
 import { login as loginApi, type LoginResult } from '../api/client';
 
 interface LoginProps {
@@ -12,6 +17,7 @@ export default function Login({ onLogin }: LoginProps) {
   const [pin, setPin] = useState('1234');
   const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState('');
+  const [showForgotPin, setShowForgotPin] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
@@ -133,8 +139,24 @@ export default function Login({ onLogin }: LoginProps) {
             </Button>
 
             <div className="text-center">
-              <span className="text-xs" style={{ color: '#9AAFBF' }}>Forgot PIN? Contact admin</span>
+              <button
+                type="button"
+                onClick={() => setShowForgotPin(v => !v)}
+                className="text-xs underline-offset-2 hover:underline"
+                style={{ color: '#9AAFBF' }}
+              >
+                Forgot PIN? Contact admin
+              </button>
             </div>
+
+            {showForgotPin && (
+              <div
+                className="rounded-lg px-3 py-2.5 text-xs text-center"
+                style={{ background: '#F7FAFC', color: '#5A7080' }}
+              >
+                Only your admin can reset your PIN. {ADMIN_CONTACT}
+              </div>
+            )}
           </div>
         </div>
       </div>
