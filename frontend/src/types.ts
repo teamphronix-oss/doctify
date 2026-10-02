@@ -29,6 +29,8 @@ export interface Clinic {
   doctorName: string;
   qualification: string;
   regNo: string;
+  code?: string;   // the clinic's login code (shown so it can be shared/noted down)
+  role?: string;   // this user's role in this clinic (e.g. 'owner', 'doctor')
 }
 
 export interface FamilyMember {

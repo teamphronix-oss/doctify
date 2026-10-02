@@ -81,7 +81,7 @@ router.post('/sync-now', async (req, res) => {
  */
 router.post('/backup', async (req, res) => {
   try {
-    const backup = await createFullBackup();
+    const backup = await createFullBackup(req.auth.hospitalId);
 
     res.json({
       fileName: backup.fileName,

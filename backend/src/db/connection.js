@@ -413,6 +413,23 @@ addColumnIfMissing(
 
 
 // ============================================================
+// 4A. CLINIC DETAILS (printed on prescriptions) + LOGIN CODE RULES
+// ============================================================
+
+addColumnIfMissing('hospitals', 'address', 'TEXT');
+addColumnIfMissing('hospitals', 'doctor_name', 'TEXT');
+addColumnIfMissing('hospitals', 'qualification', 'TEXT');
+addColumnIfMissing('hospitals', 'reg_no', 'TEXT');
+
+// A doctor logs in with just user code + PIN, so a user code must be
+// unique across the whole system.
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_users_user_code_unique
+  ON users(user_code)
+`);
+
+
+// ============================================================
 // 5. ENSURE DEMO HOSPITAL EXISTS
 // ============================================================
 
@@ -507,6 +524,21 @@ for (const table of syncTables) {
 
 
 const normalIndexes = [
+  `
+    CREATE INDEX IF NOT EXISTS idx_users_user_code
+    ON users(user_code)
+  `,
+
+  `
+    CREATE INDEX IF NOT EXISTS idx_clinic_users_hospital
+    ON clinic_users(hospital_id)
+  `,
+
+  `
+    CREATE INDEX IF NOT EXISTS idx_clinic_users_user
+    ON clinic_users(user_id)
+  `,
+
   `
     CREATE INDEX IF NOT EXISTS idx_patients_phone
     ON patients(phone)

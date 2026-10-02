@@ -5,7 +5,13 @@ const PDFDocument = require('pdfkit');
 
 const db = require('../db/connection');
 
-const HOSPITAL_ID = Number(process.env.HOSPITAL_ID || 1);
+// The clinic whose data is being exported. Set per backup via
+// setExportHospital() so each clinic only exports its own records.
+let HOSPITAL_ID = Number(process.env.HOSPITAL_ID || 1);
+
+function setExportHospital(hospitalId) {
+  HOSPITAL_ID = Number(hospitalId);
+}
 
 /*
  * Doctify human-readable export service
@@ -5011,6 +5017,8 @@ function drawFinancialTables(
     getReferenceLetters,
 
     createExcelExport,
+
+    setExportHospital,
 
     createExcelBackup,
 

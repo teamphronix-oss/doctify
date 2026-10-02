@@ -4,7 +4,7 @@ const db = require('../db/connection');
 
 // ---- Fitness Certificate ----
 router.post('/fitness', (req, res) => {
-  const { patient_name, age, gender, examination_date, fitness_type, hospital_id } = req.body;
+  const { patient_name, age, gender, examination_date, fitness_type } = req.body;
   if (!patient_name || !examination_date || !fitness_type) {
     return res.status(400).json({ error: 'patient_name, examination_date, and fitness_type are required' });
   }
@@ -12,19 +12,22 @@ router.post('/fitness', (req, res) => {
     INSERT INTO fitness_certificates (hospital_id, patient_name, age, gender, examination_date, fitness_type)
     VALUES (?, ?, ?, ?, ?, ?)
   `);
-  const result = stmt.run(hospital_id || 1, patient_name, age || null, gender || null, examination_date, fitness_type);
+  const result = stmt.run(req.auth.hospitalId, patient_name, age || null, gender || null, examination_date, fitness_type);
   res.status(201).json(db.prepare('SELECT * FROM fitness_certificates WHERE id = ?').get(result.lastInsertRowid));
 });
 
 router.get('/fitness', (req, res) => {
-  res.json(db.prepare('SELECT * FROM fitness_certificates ORDER BY created_at DESC').all());
+  res.json(
+    db.prepare('SELECT * FROM fitness_certificates WHERE hospital_id = ? ORDER BY created_at DESC')
+      .all(req.auth.hospitalId)
+  );
 });
 
 // ---- Illness Certificate ----
 router.post('/illness', (req, res) => {
   const {
     patient_name, age, gender, examination_date,
-    diagnosis, start_date, end_date, resume_date, hospital_id,
+    diagnosis, start_date, end_date, resume_date,
   } = req.body;
   if (!patient_name || !examination_date || !diagnosis || !start_date || !end_date) {
     return res.status(400).json({
@@ -37,14 +40,17 @@ router.post('/illness', (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const result = stmt.run(
-    hospital_id || 1, patient_name, age || null, gender || null,
+    req.auth.hospitalId, patient_name, age || null, gender || null,
     examination_date, diagnosis, start_date, end_date, resume_date || null
   );
   res.status(201).json(db.prepare('SELECT * FROM illness_certificates WHERE id = ?').get(result.lastInsertRowid));
 });
 
 router.get('/illness', (req, res) => {
-  res.json(db.prepare('SELECT * FROM illness_certificates ORDER BY created_at DESC').all());
+  res.json(
+    db.prepare('SELECT * FROM illness_certificates WHERE hospital_id = ? ORDER BY created_at DESC')
+      .all(req.auth.hospitalId)
+  );
 });
 
 module.exports = router;

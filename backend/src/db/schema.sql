@@ -17,6 +17,32 @@ CREATE TABLE IF NOT EXISTS hospitals (
 );
 
 
+-- ============================================================
+-- AUTH: doctor/user accounts + which clinics they can access
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_code TEXT NOT NULL,
+  name TEXT,
+  password_hash TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE IF NOT EXISTS clinic_users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  hospital_id INTEGER NOT NULL,
+  role TEXT NOT NULL DEFAULT 'doctor',
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, hospital_id)
+);
+
+
 CREATE TABLE IF NOT EXISTS families (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   hospital_id INTEGER NOT NULL DEFAULT 1,

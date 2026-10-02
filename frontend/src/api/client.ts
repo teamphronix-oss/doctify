@@ -1,8 +1,49 @@
-import type { Patient, Visit, Medicine, Certificate, Receipt, ReferenceLetter } from '../types';
+import type { Patient, Visit, Medicine, Certificate, Receipt, ReferenceLetter, Clinic } from '../types';
 
 // Points at the backend from earlier. Change via a .env file
 // (VITE_API_BASE=...) once this moves off your laptop.
 const API_BASE = (import.meta as any).env?.VITE_API_BASE || 'http://127.0.0.1:8123';
+
+// ---------------------------------------------------------------------
+// Login token
+//
+// The backend gives us a token on login. We keep it in sessionStorage
+// (cleared when the browser tab is closed) and attach it to every request
+// below. Change sessionStorage -> localStorage if you want doctors to stay
+// logged in after closing the tab.
+// ---------------------------------------------------------------------
+
+const TOKEN_KEY = 'doctify_token';
+
+export function getToken(): string | null {
+  return sessionStorage.getItem(TOKEN_KEY);
+}
+
+export function clearToken(): void {
+  sessionStorage.removeItem(TOKEN_KEY);
+}
+
+// Every fetch() in this file goes through this wrapper (it shadows the
+// global fetch), so all API calls automatically send the token.
+// If the backend says 401 (token missing/expired), we clear the token and
+// tell the app to return to the login screen.
+const fetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const token = getToken();
+  const headers = new Headers(init.headers);
+
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const res = await window.fetch(input, { ...init, headers });
+
+  if (res.status === 401 && token) {
+    clearToken();
+    window.dispatchEvent(new Event('doctify:unauthorized'));
+  }
+
+  return res;
+};
 
 async function handle(res: Response) {
   if (!res.ok) {
@@ -102,6 +143,140 @@ function adaptPatientForList(p: any): Patient {
       }]
     : [];
   return { ...base, visits };
+}
+
+// ---------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------
+
+export interface LoginPayload {
+  hospitalCode: string;
+  userCode: string;
+  pin: string;
+}
+
+// Shape the backend sends for a clinic (clinicService.js). id is numeric
+// there; the rest of the frontend works with string ids (see Clinic).
+interface ApiClinic {
+  id: number;
+  name: string;
+  code: string;
+  address: string;
+  doctorName: string;
+  qualification: string;
+  regNo: string;
+  role: string;
+}
+
+function adaptClinic(c: ApiClinic): Clinic {
+  return {
+    id: String(c.id),
+    name: c.name,
+    address: c.address || '',
+    doctorName: c.doctorName || '',
+    qualification: c.qualification || '',
+    regNo: c.regNo || '',
+    code: c.code,
+    role: c.role,
+  };
+}
+
+export interface LoginResult {
+  userName: string;
+  role: string;
+  clinics: Clinic[];
+  activeClinicId: string;
+}
+
+// On bad credentials or an inactive account, throws an Error whose message
+// is the backend's plain-English reason (e.g. "Invalid hospital code, user
+// code or PIN.") - the Login screen shows that message directly.
+//
+// hospitalCode picks exactly which clinic this login opens - the same
+// user code + PIN work across every clinic this doctor belongs to, only
+// the hospital code differs per clinic. (Switching to another of their
+// clinics afterwards, without a new login, is selectClinic() below.)
+export async function login(payload: LoginPayload): Promise<LoginResult> {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.error || `Login failed (${res.status}).`);
+  }
+
+  sessionStorage.setItem(TOKEN_KEY, data.token);
+
+  return {
+    userName: data.user.name,
+    role: data.user.role,
+    clinics: (data.clinics as ApiClinic[]).map(adaptClinic),
+    activeClinicId: String(data.hospital.id),
+  };
+}
+
+// ---------------------------------------------------------------------
+// Clinics
+// ---------------------------------------------------------------------
+
+// All clinics the logged-in doctor can open.
+export async function listClinics(): Promise<Clinic[]> {
+  const rows = await handle(await fetch(`${API_BASE}/clinics`));
+  return (rows as ApiClinic[]).map(adaptClinic);
+}
+
+export interface ClinicDetailsPayload {
+  name: string;
+  address?: string;
+  doctorName?: string;
+  qualification?: string;
+  regNo?: string;
+}
+
+// Adds a brand-new clinic (the doctor becomes its owner). It starts
+// completely empty - no patients, visits, etc. are shared with any
+// other clinic.
+export async function addClinic(details: ClinicDetailsPayload): Promise<Clinic> {
+  const row = await handle(await fetch(`${API_BASE}/clinics`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(details),
+  }));
+  return adaptClinic(row);
+}
+
+export async function updateClinic(id: string, details: ClinicDetailsPayload): Promise<Clinic> {
+  const row = await handle(await fetch(`${API_BASE}/clinics/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(details),
+  }));
+  return adaptClinic(row);
+}
+
+// Switches the active clinic WITHOUT logging out - only succeeds if the
+// doctor actually belongs to that clinic. Every API call after this
+// automatically uses the new clinic's data (the token carries it).
+export async function selectClinic(hospitalId: string): Promise<Clinic> {
+  const res = await fetch(`${API_BASE}/auth/select-clinic`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hospitalId: Number(hospitalId) }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.error || `Could not switch clinic (${res.status}).`);
+  }
+
+  sessionStorage.setItem(TOKEN_KEY, data.token);
+
+  return adaptClinic(data.clinic);
 }
 
 // ---------------------------------------------------------------------

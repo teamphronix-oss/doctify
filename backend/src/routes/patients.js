@@ -3,14 +3,13 @@ const router = express.Router();
 const db = require('../db/connection');
 const { backupExists } = require('../services/backup');
 
-const HOSPITAL_ID = 1;
-
 // ============================================================
 // PATIENTS
 // ============================================================
 
 // POST /patients - Add Patient
 router.post('/', (req, res) => {
+  const HOSPITAL_ID = req.auth.hospitalId;
   const { name, gender, age, phone, family_id } = req.body;
 
   if (!name) {
@@ -30,11 +29,12 @@ router.post('/', (req, res) => {
 
   const stmt = db.prepare(`
     INSERT INTO patients
-      (name, gender, age, phone, family_id)
-    VALUES (?, ?, ?, ?, ?)
+      (hospital_id, name, gender, age, phone, family_id)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
+    HOSPITAL_ID,
     name.trim(),
     gender || null,
     age || null,
@@ -52,6 +52,7 @@ router.post('/', (req, res) => {
 
 // GET /patients?q=search - Patient Search
 router.get('/', (req, res) => {
+  const HOSPITAL_ID = req.auth.hospitalId;
   const { q } = req.query;
 
   const baseQuery = `
@@ -81,18 +82,20 @@ router.get('/', (req, res) => {
     rows = db.prepare(`
       ${baseQuery}
       WHERE p.deleted_at IS NULL
+  AND p.hospital_id = ?
   AND (
     p.name LIKE ?
     OR p.phone LIKE ?
   )
       ORDER BY p.created_at DESC
-    `).all(`%${q}%`, `%${q}%`);
+    `).all(HOSPITAL_ID, `%${q}%`, `%${q}%`);
   } else {
     rows = db.prepare(`
       ${baseQuery}
 WHERE p.deleted_at IS NULL
+  AND p.hospital_id = ?
 ORDER BY p.created_at DESC
-    `).all();
+    `).all(HOSPITAL_ID);
   }
 
   res.json(rows);
@@ -107,6 +110,7 @@ ORDER BY p.created_at DESC
 // Kept for compatibility with the existing AddPatient code.
 // This is ONLY a suggestion now — it does NOT define a family.
 router.get('/family-matches', (req, res) => {
+  const HOSPITAL_ID = req.auth.hospitalId;
   const phone = String(req.query.phone || '').trim();
 
   if (!phone) {
@@ -117,9 +121,10 @@ router.get('/family-matches', (req, res) => {
     SELECT *
     FROM patients
     WHERE phone = ?
+  AND hospital_id = ?
   AND deleted_at IS NULL
 ORDER BY name
-  `).all(phone);
+  `).all(phone, HOSPITAL_ID);
 
   res.json(rows);
 });
@@ -133,6 +138,7 @@ ORDER BY name
 // Search families by family name, member name, or member phone.
 // Always returns members[] because the frontend displays family members.
 router.get('/families', (req, res) => {
+  const HOSPITAL_ID = req.auth.hospitalId;
   const q = String(req.query.q || '').trim();
   const like = `%${q}%`;
 
@@ -207,6 +213,7 @@ ORDER BY created_at DESC, id DESC
   res.json(result);
 });
 router.post('/families', (req, res) => {
+  const HOSPITAL_ID = req.auth.hospitalId;
   const label = String(req.body.label || '').trim();
 
   if (!label) {
@@ -234,6 +241,7 @@ router.post('/families', (req, res) => {
 //
 // Get one family and all its members.
 router.get('/families/:id', (req, res) => {
+  const HOSPITAL_ID = req.auth.hospitalId;
   const family = db.prepare(`
     SELECT *
     FROM families
@@ -275,6 +283,7 @@ ORDER BY name
 //
 // Add an existing patient to a family.
 router.post('/families/:id/members', (req, res) => {
+  const HOSPITAL_ID = req.auth.hospitalId;
   const patientId = Number(req.body.patientId);
 
   if (!patientId) {
@@ -345,6 +354,7 @@ router.post('/families/:id/members', (req, res) => {
 // Remove a patient from a family.
 // This does NOT delete the patient.
 router.delete('/families/:id/members/:patientId', (req, res) => {
+  const HOSPITAL_ID = req.auth.hospitalId;
   const result = db.prepare(`
     UPDATE patients
     SET family_id = NULL
@@ -372,6 +382,7 @@ router.delete('/families/:id/members/:patientId', (req, res) => {
 //
 // Rename a family.
 router.patch('/families/:id', (req, res) => {
+  const HOSPITAL_ID = req.auth.hospitalId;
   const label = String(req.body.label || '').trim();
 
   if (!label) {
@@ -417,6 +428,7 @@ router.patch('/families/:id', (req, res) => {
 // patients together, but the new UI will use the explicit
 // family-management endpoints above.
 router.post('/link-family', (req, res) => {
+  const HOSPITAL_ID = req.auth.hospitalId;
   const { patientIds } = req.body;
 
   if (!Array.isArray(patientIds) || patientIds.length === 0) {
@@ -478,6 +490,7 @@ router.post('/link-family', (req, res) => {
 
 // GET /patients/:id - Patient Details
 router.get('/:id', (req, res) => {
+  const HOSPITAL_ID = req.auth.hospitalId;
   const patient = db.prepare(`
     SELECT *
     FROM patients
@@ -535,6 +548,7 @@ router.get('/:id', (req, res) => {
 
 
 router.delete('/all', (req, res) => {
+  const HOSPITAL_ID = req.auth.hospitalId;
   const { backupFileName } = req.body || {};
 
   if (!backupFileName) {
@@ -661,6 +675,7 @@ router.delete('/all', (req, res) => {
 
 // DELETE /patients/:id - Soft delete Patient + Visits + Medicines
 router.delete('/:id', (req, res) => {
+  const HOSPITAL_ID = req.auth.hospitalId;
   const patientId = Number(req.params.id);
 
   if (!Number.isInteger(patientId) || patientId <= 0) {
@@ -675,7 +690,8 @@ router.delete('/:id', (req, res) => {
   SELECT id, hospital_id, name, deleted_at
   FROM patients
   WHERE id = ?
-`).get(patientId);
+    AND hospital_id = ?
+`).get(patientId, HOSPITAL_ID);
 
  if (!patient) {
   return res.status(404).json({

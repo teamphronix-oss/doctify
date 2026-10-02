@@ -5,7 +5,7 @@ const db = require('../db/connection');
 router.post('/', (req, res) => {
   const {
     patient_name, age_sex, amount, amount_words, description,
-    consult_date, custom_date, hospital_id,
+    consult_date, custom_date,
   } = req.body;
   if (!patient_name || !amount || !consult_date) {
     return res.status(400).json({ error: 'patient_name, amount, and consult_date are required' });
@@ -16,14 +16,17 @@ router.post('/', (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual')
   `);
   const result = stmt.run(
-    hospital_id || 1, patient_name, age_sex || null, amount, amount_words || null,
+    req.auth.hospitalId, patient_name, age_sex || null, amount, amount_words || null,
     description || null, consult_date, custom_date || null
   );
   res.status(201).json(db.prepare('SELECT * FROM cash_receipts WHERE id = ?').get(result.lastInsertRowid));
 });
 
 router.get('/', (req, res) => {
-  res.json(db.prepare('SELECT * FROM cash_receipts ORDER BY created_at DESC').all());
+  res.json(
+    db.prepare('SELECT * FROM cash_receipts WHERE hospital_id = ? ORDER BY created_at DESC')
+      .all(req.auth.hospitalId)
+  );
 });
 
 // --- Future feature stub, discussed but NOT wired to a real payment

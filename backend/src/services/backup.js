@@ -5,6 +5,7 @@ const {
   createExcelExport,
   createPdfExport,
    getExportData,
+  setExportHospital,
 } = require('./doctorExport');
 
 const db = require('../db/connection');
@@ -63,16 +64,15 @@ function formatDateForFileName(date = new Date()) {
 return `${day}-${month}-${year}-${hours}-${minutes}-${seconds}-${ampm}`;
 }
 
-function getClinicName() {
+function getClinicName(hospitalId) {
   try {
     const hospital = db
       .prepare(`
         SELECT name
         FROM hospitals
-        ORDER BY id
-        LIMIT 1
+        WHERE id = ?
       `)
-      .get();
+      .get(hospitalId);
 
     return hospital?.name || 'Doctify Clinic';
   } catch {
@@ -280,10 +280,13 @@ async function createZipArchive(sourceDir, zipPath, folderName) {
   });
 }
 
-async function createFullBackup() {
+async function createFullBackup(hospitalId) {
   ensureBackupDir();
 
-  const clinicName = getClinicName();
+  // Excel/PDF parts of the backup are limited to this clinic's records.
+  setExportHospital(hospitalId);
+
+  const clinicName = getClinicName(hospitalId);
   const now = new Date();
 
   const readableDate =

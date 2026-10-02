@@ -1,85 +1,40 @@
 import { useState } from 'react';
-import type { Clinic } from '../types';
-import { CLINICS } from '../data';
 import { Button, Input } from '../components/ui';
+import { login as loginApi, type LoginResult } from '../api/client';
 
 interface LoginProps {
-  onLogin: (clinic: Clinic) => void;
+  onLogin: (result: LoginResult) => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
-  const [step, setStep] = useState<'login' | 'clinic-select'>('login');
-  const [hospitalCode, setHospitalCode] = useState('SGC2024');
+  const [hospitalCode, setHospitalCode] = useState('DEMO001');
   const [userCode, setUserCode] = useState('DR001');
   const [pin, setPin] = useState('1234');
   const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setError('');
     if (!hospitalCode || !userCode || !pin) {
       setError('Please fill in all fields.');
       return;
     }
     setLoading(true);
-    setTimeout(() => {
+    try {
+      // Real backend check: only succeeds if this hospital code, user
+      // code and PIN combination actually exists (and is active) in
+      // the database. hospitalCode picks exactly which clinic opens -
+      // switching to another of this doctor's clinics afterwards (no
+      // hospital code needed) happens later, from Settings.
+      const result = await loginApi({ hospitalCode, userCode, pin });
+      onLogin(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed.');
+    } finally {
       setLoading(false);
-      setStep('clinic-select');
-    }, 800);
+    }
   };
-
-  if (step === 'clinic-select') {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #EFF6FB 0%, #D4E5F0 100%)' }}>
-        <div className="w-full max-w-md">
-          <div className="rounded-2xl shadow-xl overflow-hidden" style={{ background: '#fff' }}>
-            <div className="px-8 py-6" style={{ background: '#0F2133' }}>
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg flex items-center justify-center font-bold text-sm text-white" style={{ width: 36, height: 36, background: '#2196C9' }}>OPD</div>
-                <div>
-                  <div className="text-white font-semibold">Select Clinic</div>
-                  <div className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>Multiple clinics found for your account</div>
-                </div>
-              </div>
-            </div>
-            <div className="p-6 flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={() => setStep('login')}
-                className="self-start text-xs font-medium transition-colors"
-                style={{ color: '#2196C9' }}
-              >
-                ← Back to sign in
-              </button>
-              {CLINICS.map(clinic => (
-                <button
-                  key={clinic.id}
-                  onClick={() => onLogin(clinic)}
-                  className="w-full text-left rounded-xl p-4 border transition-all"
-                  style={{ borderColor: '#D4E5F0' }}
-                  onMouseEnter={e => {
-                    const el = e.currentTarget as HTMLButtonElement;
-                    el.style.borderColor = '#2196C9';
-                    el.style.background = '#E8F4FA';
-                  }}
-                  onMouseLeave={e => {
-                    const el = e.currentTarget as HTMLButtonElement;
-                    el.style.borderColor = '#D4E5F0';
-                    el.style.background = 'transparent';
-                  }}
-                >
-                  <div className="font-semibold text-sm" style={{ color: '#1A2B3C' }}>{clinic.name}</div>
-                  <div className="text-xs mt-1" style={{ color: '#5A7080' }}>{clinic.address}</div>
-                  <div className="text-xs mt-1" style={{ color: '#9AAFBF' }}>{clinic.doctorName} · {clinic.qualification}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex" style={{ background: 'linear-gradient(135deg, #EFF6FB 0%, #D4E5F0 100%)' }}>

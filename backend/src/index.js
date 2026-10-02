@@ -2,22 +2,27 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 
+const requireAuth = require('./middleware/requireAuth');
+const requireClinic = require('./middleware/requireClinic');
+const requireDeviceAccess = require('./middleware/requireDeviceAccess');
 const reportsRouter = require('./routes/reports');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.use('/patients', require('./routes/patients'));
-app.use('/visits', require('./routes/visits'));
-app.use('/presets', require('./routes/presets'));
-app.use('/medicine-catalog', require('./routes/medicineCatalog'));
-app.use('/certificates', require('./routes/certificates'));
-app.use('/cash-receipts', require('./routes/cashReceipts'));
-app.use('/reference-letters', require('./routes/referenceLetters'));
-app.use('/system', require('./routes/system'));
+app.use('/auth', require('./routes/auth'));
+app.use('/clinics', requireAuth, require('./routes/clinics'));
+app.use('/patients', requireAuth, requireClinic, require('./routes/patients'));
+app.use('/visits', requireAuth, requireClinic, require('./routes/visits'));
+app.use('/presets', requireAuth, requireClinic, require('./routes/presets'));
+app.use('/medicine-catalog', requireAuth, requireClinic, require('./routes/medicineCatalog'));
+app.use('/certificates', requireAuth, requireClinic, require('./routes/certificates'));
+app.use('/cash-receipts', requireAuth, requireClinic, require('./routes/cashReceipts'));
+app.use('/reference-letters', requireAuth, requireClinic, require('./routes/referenceLetters'));
+app.use('/system', requireAuth, requireClinic, requireDeviceAccess, require('./routes/system'));
 
-app.use('/reports', reportsRouter);
+app.use('/reports', requireAuth, requireClinic, reportsRouter);
 
 const sync = require('./services/sync');
 sync.startSyncWorker();

@@ -1,7 +1,9 @@
 import type { Screen, User } from '../types';
 import type { ReactElement } from 'react';
 import type { CSSProperties } from 'react';
+import { useState } from 'react';
 import { BarChart3,Settings } from 'lucide-react';
+import { selectClinic } from '../api/client';
 
 interface NavItem {
   id: Screen;
@@ -96,6 +98,9 @@ interface SidebarProps {
   onNavigate: (screen: Screen) => void;
   user: User;
   onLogout: () => void;
+  // Called once the backend confirms the switch and a new token is
+  // issued - App.tsx updates the active clinic and shows the dashboard.
+  onClinicSwitched: (clinicId: string) => void;
 }
 
 export default function Sidebar({
@@ -103,7 +108,30 @@ export default function Sidebar({
   onNavigate,
   user,
   onLogout,
+  onClinicSwitched,
 }: SidebarProps) {
+  const [showClinicMenu, setShowClinicMenu] = useState(false);
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
+  const [switchError, setSwitchError] = useState('');
+
+  const handlePick = async (clinicId: string) => {
+    if (clinicId === user.activeClinic.id) {
+      setShowClinicMenu(false);
+      return;
+    }
+    setSwitchError('');
+    setSwitchingId(clinicId);
+    try {
+      await selectClinic(clinicId);
+      onClinicSwitched(clinicId);
+      setShowClinicMenu(false);
+    } catch (err) {
+      setSwitchError(err instanceof Error ? err.message : 'Could not switch clinic.');
+    } finally {
+      setSwitchingId(null);
+    }
+  };
+
   return (
     <aside
       className="phronix-sidebar"
@@ -440,6 +468,65 @@ export default function Sidebar({
           text-overflow: ellipsis;
         }
 
+        .phronix-switch-clinic-wrap {
+          position: relative;
+        }
+
+        .phronix-clinic-menu {
+          position: absolute;
+          bottom: calc(100% + 6px);
+          left: 0;
+          right: 0;
+          background: #15283B;
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 10px;
+          padding: 6px;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          z-index: 20;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+          max-height: 220px;
+          overflow-y: auto;
+        }
+
+        .phronix-clinic-menu-error {
+          font-size: 11px;
+          color: #FF8080;
+          padding: 6px 8px;
+        }
+
+        .phronix-clinic-menu-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          width: 100%;
+          text-align: left;
+          padding: 8px 9px;
+          border-radius: 7px;
+          border: none;
+          background: transparent;
+          color: rgba(255,255,255,.75);
+          font-size: 12px;
+          cursor: pointer;
+        }
+
+        .phronix-clinic-menu-item:hover {
+          background: rgba(255,255,255,0.06);
+        }
+
+        .phronix-clinic-menu-item.active {
+          color: #fff;
+          background: rgba(33,150,201,0.18);
+        }
+
+        .phronix-clinic-menu-tag {
+          font-size: 10px;
+          color: #2196C9;
+          flex-shrink: 0;
+        }
+
         .phronix-logout {
           width: 100%;
           margin-top: 7px;
@@ -604,6 +691,55 @@ export default function Sidebar({
             <div className="phronix-user-reg">{user.activeClinic.regNo}</div>
           </div>
         </div>
+
+        {user.clinics.length > 1 && (
+          <div className="phronix-switch-clinic-wrap">
+            <button
+              type="button"
+              onClick={() => { setShowClinicMenu(v => !v); setSwitchError(''); }}
+              className="phronix-logout"
+            >
+              <svg
+                width={14}
+                height={14}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
+              <span>Switch Clinic</span>
+            </button>
+
+            {showClinicMenu && (
+              <div className="phronix-clinic-menu">
+                {switchError && (
+                  <div className="phronix-clinic-menu-error">{switchError}</div>
+                )}
+                {user.clinics.map(clinic => (
+                  <button
+                    key={clinic.id}
+                    type="button"
+                    disabled={switchingId !== null}
+                    onClick={() => handlePick(clinic.id)}
+                    className={`phronix-clinic-menu-item${clinic.id === user.activeClinic.id ? ' active' : ''}`}
+                  >
+                    <span>{clinic.name}</span>
+                    {clinic.id === user.activeClinic.id ? (
+                      <span className="phronix-clinic-menu-tag">Active</span>
+                    ) : switchingId === clinic.id ? (
+                      <span className="phronix-clinic-menu-tag">Opening…</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <button
           type="button"

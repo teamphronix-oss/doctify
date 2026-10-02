@@ -3,8 +3,6 @@ const db = require('../db/connection');
 
 const router = express.Router();
 
-const HOSPITAL_ID = 1;
-
 /*
 |--------------------------------------------------------------------------
 | GET /reports/summary
@@ -12,6 +10,7 @@ const HOSPITAL_ID = 1;
 | Dashboard/report summary.
 */
 router.get('/summary', (req, res) => {
+  const HOSPITAL_ID = req.auth.hospitalId;
   const from = String(req.query.from || '').trim();
   const to = String(req.query.to || '').trim();
 
@@ -285,6 +284,7 @@ todayPatients,
 |--------------------------------------------------------------------------
 */
 router.get('/monthly', (req, res) => {
+  const HOSPITAL_ID = req.auth.hospitalId;
   const from = String(req.query.from || '').trim();
   const to = String(req.query.to || '').trim();
 
