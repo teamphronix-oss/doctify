@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { User, Clinic } from '../types';
 import DataModeSettings from '../components/DataModeSettings';
 import { PageHeader, Card, Divider, Select, Button, Input } from '../components/ui';
-import { addClinic, selectClinic, type ClinicDetailsPayload } from '../api/client';
+import { addClinic, updateClinic, deleteClinic, selectClinic, type ClinicDetailsPayload } from '../api/client';
 
 const VOICE_LANGUAGES = [
   { value: 'mr-IN', label: 'Marathi' },
@@ -20,6 +20,42 @@ const EMPTY_CLINIC_FORM: ClinicDetailsPayload = {
   name: '', address: '', doctorName: '', qualification: '', regNo: '',
 };
 
+// Styles the native file input's button part so it visibly looks
+// clickable (blue), instead of the plain unstyled "Choose File" text.
+const FILE_INPUT_CLASS =
+  'block text-xs cursor-pointer file:mr-3 file:cursor-pointer file:rounded-lg ' +
+  'file:border-0 file:bg-[#2196C9] file:px-3 file:py-2 file:text-xs ' +
+  'file:font-semibold file:text-white hover:file:bg-[#1A7FA8]';
+
+const MAX_BANNER_WIDTH = 1000;
+
+// Shrinks/compresses whatever image the doctor picks before it's sent to
+// the backend - a straight-from-camera letterhead photo can be several
+// MB, which is unnecessary for a header that prints at a few hundred
+// pixels wide. Shared by both the Add and Edit clinic forms.
+function resizeBannerFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, MAX_BANNER_WIDTH / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Could not process image.')); return; }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => reject(new Error('Could not read image.'));
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => reject(new Error('Could not read file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function Settings({ user, onClinicSwitched, onClinicsChanged }: SettingsProps) {
   const [voiceLanguage, setVoiceLanguage] = useState(
     localStorage.getItem('doctify_voice_language') || 'mr-IN'
@@ -32,6 +68,117 @@ export default function Settings({ user, onClinicSwitched, onClinicsChanged }: S
   const [newClinic, setNewClinic] = useState<ClinicDetailsPayload>(EMPTY_CLINIC_FORM);
   const [addError, setAddError] = useState('');
   const [adding, setAdding] = useState(false);
+  const [bannerPreview, setBannerPreview] = useState('');
+  const [bannerProcessing, setBannerProcessing] = useState(false);
+
+  // Editing an existing clinic (separate from the Add form above).
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<ClinicDetailsPayload>(EMPTY_CLINIC_FORM);
+  const [editBannerPreview, setEditBannerPreview] = useState('');
+  const [editBannerProcessing, setEditBannerProcessing] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleBannerFile = async (file: File | null) => {
+    if (!file) return;
+    setAddError('');
+    setBannerProcessing(true);
+    try {
+      const dataUrl = await resizeBannerFile(file);
+      setNewClinic(prev => ({ ...prev, bannerImage: dataUrl }));
+      setBannerPreview(dataUrl);
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Could not process image.');
+    } finally {
+      setBannerProcessing(false);
+    }
+  };
+
+  const startEdit = (clinic: Clinic) => {
+    setDeleteError('');
+    setEditingId(clinic.id);
+    setEditForm({
+      name: clinic.name,
+      address: clinic.address,
+      doctorName: clinic.doctorName,
+      qualification: clinic.qualification,
+      regNo: clinic.regNo,
+      bannerImage: clinic.bannerImage || '',
+    });
+    setEditBannerPreview(clinic.bannerImage || '');
+    setEditError('');
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditError('');
+  };
+
+  const handleEditBannerFile = async (file: File | null) => {
+    if (!file) return;
+    setEditError('');
+    setEditBannerProcessing(true);
+    try {
+      const dataUrl = await resizeBannerFile(file);
+      setEditForm(prev => ({ ...prev, bannerImage: dataUrl }));
+      setEditBannerPreview(dataUrl);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Could not process image.');
+    } finally {
+      setEditBannerProcessing(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId) return;
+    if (!editForm.name.trim()) {
+      setEditError('Clinic name is required.');
+      return;
+    }
+    setEditError('');
+    setEditSaving(true);
+    try {
+      const updated = await updateClinic(editingId, editForm);
+      onClinicsChanged(user.clinics.map(c => (c.id === updated.id ? updated : c)));
+      setEditingId(null);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Could not save changes.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDeleteClinic = async (clinic: Clinic) => {
+    if (user.clinics.length <= 1) return; // button is disabled for this case anyway
+    if (!window.confirm(
+      `Remove "${clinic.name}"? Its patients and records are kept, but you will no longer be able to open this clinic.`
+    )) return;
+
+    setDeleteError('');
+    setDeletingId(clinic.id);
+    try {
+      await deleteClinic(clinic.id);
+      const remaining = user.clinics.filter(c => c.id !== clinic.id);
+
+      if (clinic.id === user.activeClinic.id) {
+        // We just removed the clinic we were sitting in - open another
+        // one of the doctor's clinics so the app isn't left pointing at
+        // a clinic that no longer opens.
+        const next = remaining[0];
+        await selectClinic(next.id);
+        onClinicsChanged(remaining, next.id);
+      } else {
+        onClinicsChanged(remaining);
+      }
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Could not remove clinic.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const handleSwitch = async (clinicId: string) => {
     if (clinicId === user.activeClinic.id) return;
@@ -62,6 +209,7 @@ export default function Settings({ user, onClinicSwitched, onClinicsChanged }: S
       const created = await addClinic(newClinic);
       onClinicsChanged([...user.clinics, created]);
       setNewClinic(EMPTY_CLINIC_FORM);
+      setBannerPreview('');
       setShowAddForm(false);
     } catch (err) {
       setAddError(err instanceof Error ? err.message : 'Could not add clinic.');
@@ -251,6 +399,32 @@ export default function Settings({ user, onClinicSwitched, onClinicsChanged }: S
                     />
                   </div>
 
+                  <div>
+                    <label className="text-xs font-medium block mb-1.5" style={{ color: '#5A7080' }}>
+                      Prescription Header Banner (optional)
+                    </label>
+                    <p className="text-xs mb-2" style={{ color: '#9AAFBF' }}>
+                      Upload a letterhead image (clinic name, logo, address,
+                      doctor details) and it will be printed at the top of
+                      every prescription for this clinic, instead of the
+                      plain text header.
+                    </p>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={e => handleBannerFile(e.target.files?.[0] ?? null)}
+                      className={FILE_INPUT_CLASS}
+                    />
+                    {bannerProcessing && (
+                      <div className="text-xs mt-2" style={{ color: '#9AAFBF' }}>Processing image…</div>
+                    )}
+                    {bannerPreview && !bannerProcessing && (
+                      <div className="mt-2 rounded-lg border p-2" style={{ borderColor: '#D4E5F0', background: '#fff' }}>
+                        <img src={bannerPreview} alt="Banner preview" style={{ maxWidth: '100%', maxHeight: 120, display: 'block' }} />
+                      </div>
+                    )}
+                  </div>
+
                   {addError && (
                     <div className="text-xs rounded-lg px-3 py-2" style={{ background: '#FDEEEE', color: '#DC3545' }}>
                       {addError}
@@ -269,45 +443,145 @@ export default function Settings({ user, onClinicSwitched, onClinicsChanged }: S
                 </div>
               )}
 
+              {deleteError && (
+                <div className="text-xs rounded-lg px-3 py-2 mb-3" style={{ background: '#FDEEEE', color: '#DC3545' }}>
+                  {deleteError}
+                </div>
+              )}
+
               <div className="flex flex-col gap-2">
                 {user.clinics.map(clinic => {
                   const isActive = clinic.id === user.activeClinic.id;
+                  const isEditing = editingId === clinic.id;
+                  const onlyClinic = user.clinics.length <= 1;
+
                   return (
                     <div
                       key={clinic.id}
-                      className="flex items-center justify-between gap-3 rounded-xl p-3"
+                      className="rounded-xl p-3"
                       style={{
                         border: isActive ? '1px solid #2196C9' : '1px solid #D4E5F0',
                         background: isActive ? '#E8F4FA' : '#fff',
                       }}
                     >
-                      <div>
-                        <div className="text-sm font-semibold" style={{ color: '#1A2B3C' }}>
-                          {clinic.name}
-                          {clinic.code && (
-                            <span className="ml-2 text-xs font-normal" style={{ color: '#9AAFBF' }}>
-                              {clinic.code}
-                            </span>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold" style={{ color: '#1A2B3C' }}>
+                            {clinic.name}
+                            {clinic.code && (
+                              <span className="ml-2 text-xs font-normal" style={{ color: '#9AAFBF' }}>
+                                {clinic.code}
+                              </span>
+                            )}
+                          </div>
+                          {clinic.address && (
+                            <div className="text-xs mt-0.5" style={{ color: '#5A7080' }}>{clinic.address}</div>
                           )}
                         </div>
-                        {clinic.address && (
-                          <div className="text-xs mt-0.5" style={{ color: '#5A7080' }}>{clinic.address}</div>
-                        )}
+
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {isActive && (
+                            <span className="text-xs font-semibold px-2" style={{ color: '#2196C9' }}>
+                              Active
+                            </span>
+                          )}
+                          {!isActive && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleSwitch(clinic.id)}
+                              disabled={switchingId === clinic.id}
+                            >
+                              {switchingId === clinic.id ? 'Switching…' : 'Switch'}
+                            </Button>
+                          )}
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => (isEditing ? cancelEdit() : startEdit(clinic))}
+                          >
+                            {isEditing ? 'Cancel' : 'Edit'}
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteClinic(clinic)}
+                            disabled={onlyClinic || deletingId === clinic.id}
+                            title={onlyClinic ? 'Your only clinic cannot be removed' : 'Remove clinic'}
+                            className="text-xs font-medium px-2 py-1.5 rounded-lg"
+                            style={{
+                              color: onlyClinic ? '#C7D3DB' : '#DC3545',
+                              cursor: onlyClinic ? 'not-allowed' : 'pointer',
+                              background: 'transparent',
+                            }}
+                          >
+                            {deletingId === clinic.id ? 'Removing…' : 'Remove'}
+                          </button>
+                        </div>
                       </div>
 
-                      {isActive ? (
-                        <span className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ color: '#2196C9' }}>
-                          Active
-                        </span>
-                      ) : (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleSwitch(clinic.id)}
-                          disabled={switchingId === clinic.id}
+                      {isEditing && (
+                        <div
+                          className="rounded-xl p-4 mt-3 flex flex-col gap-3"
+                          style={{ background: '#F7FAFC', border: '1px solid #D4E5F0' }}
                         >
-                          {switchingId === clinic.id ? 'Switching…' : 'Switch'}
-                        </Button>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <Input
+                              label="Clinic Name"
+                              value={editForm.name}
+                              onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                            />
+                            <Input
+                              label="Address"
+                              value={editForm.address}
+                              onChange={e => setEditForm({ ...editForm, address: e.target.value })}
+                            />
+                            <Input
+                              label="Doctor Name"
+                              value={editForm.doctorName}
+                              onChange={e => setEditForm({ ...editForm, doctorName: e.target.value })}
+                            />
+                            <Input
+                              label="Qualification"
+                              value={editForm.qualification}
+                              onChange={e => setEditForm({ ...editForm, qualification: e.target.value })}
+                            />
+                            <Input
+                              label="Registration No."
+                              value={editForm.regNo}
+                              onChange={e => setEditForm({ ...editForm, regNo: e.target.value })}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-medium block mb-1.5" style={{ color: '#5A7080' }}>
+                              Prescription Header Banner (optional)
+                            </label>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={e => handleEditBannerFile(e.target.files?.[0] ?? null)}
+                              className={FILE_INPUT_CLASS}
+                            />
+                            {editBannerProcessing && (
+                              <div className="text-xs mt-2" style={{ color: '#9AAFBF' }}>Processing image…</div>
+                            )}
+                            {editBannerPreview && !editBannerProcessing && (
+                              <div className="mt-2 rounded-lg border p-2" style={{ borderColor: '#D4E5F0', background: '#fff' }}>
+                                <img src={editBannerPreview} alt="Banner preview" style={{ maxWidth: '100%', maxHeight: 120, display: 'block' }} />
+                              </div>
+                            )}
+                          </div>
+
+                          {editError && (
+                            <div className="text-xs rounded-lg px-3 py-2" style={{ background: '#FDEEEE', color: '#DC3545' }}>
+                              {editError}
+                            </div>
+                          )}
+
+                          <Button variant="primary" size="sm" onClick={handleSaveEdit} disabled={editSaving} className="self-start">
+                            {editSaving ? 'Saving…' : 'Save Changes'}
+                          </Button>
+                        </div>
                       )}
                     </div>
                   );

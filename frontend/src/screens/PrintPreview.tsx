@@ -114,6 +114,14 @@ export default function PrintPreview({
           border-bottom: 3px solid #8FD3E8;
         }
 
+        .prescription-banner-image {
+          display: block;
+          width: 100%;
+          max-height: 160px;
+          object-fit: contain;
+          object-position: left center;
+        }
+
         .prescription-letterhead-main {
           display: flex;
           align-items: flex-start;
@@ -655,31 +663,41 @@ export default function PrintPreview({
         aria-label="Patient prescription"
       >
         <header className="prescription-letterhead">
-          <div className="prescription-letterhead-main">
-            <div>
-              <div className="clinic-name">
-                {user.activeClinic.name}
+          {user.activeClinic.bannerImage ? (
+            // Clinic uploaded its own letterhead (Settings > My Clinics) -
+            // it replaces the plain text header entirely.
+            <img
+              src={user.activeClinic.bannerImage}
+              alt={user.activeClinic.name}
+              className="prescription-banner-image"
+            />
+          ) : (
+            <div className="prescription-letterhead-main">
+              <div>
+                <div className="clinic-name">
+                  {user.activeClinic.name}
+                </div>
+
+                <div className="clinic-address">
+                  {user.activeClinic.address}
+                </div>
               </div>
 
-              <div className="clinic-address">
-                {user.activeClinic.address}
+              <div className="doctor-block">
+                <div className="doctor-name">
+                  {user.activeClinic.doctorName}
+                </div>
+
+                <div className="doctor-meta">
+                  {user.activeClinic.qualification}
+                </div>
+
+                <div className="doctor-meta">
+                  Reg. No: {user.activeClinic.regNo}
+                </div>
               </div>
             </div>
-
-            <div className="doctor-block">
-              <div className="doctor-name">
-                {user.activeClinic.doctorName}
-              </div>
-
-              <div className="doctor-meta">
-                {user.activeClinic.qualification}
-              </div>
-
-              <div className="doctor-meta">
-                Reg. No: {user.activeClinic.regNo}
-              </div>
-            </div>
-          </div>
+          )}
         </header>
 
         <main className="prescription-body">

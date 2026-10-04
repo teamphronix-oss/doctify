@@ -15,6 +15,7 @@ function toClinic(row, fallbackDoctorName) {
     doctorName: row.doctor_name || fallbackDoctorName || '',
     qualification: row.qualification || '',
     regNo: row.reg_no || '',
+    bannerImage: row.banner_image || '',
     role: row.role,
   };
 }
@@ -29,6 +30,7 @@ function listClinicsForUser(userId) {
     SELECT
       hospitals.id, hospitals.name, hospitals.code, hospitals.address,
       hospitals.doctor_name, hospitals.qualification, hospitals.reg_no,
+      hospitals.banner_image,
       clinic_users.role AS role
     FROM clinic_users
     JOIN hospitals ON hospitals.id = clinic_users.hospital_id
@@ -72,15 +74,16 @@ function createClinic(userId, details) {
   db.exec('BEGIN');
   try {
     const result = db.prepare(`
-      INSERT INTO hospitals (name, code, address, doctor_name, qualification, reg_no)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO hospitals (name, code, address, doctor_name, qualification, reg_no, banner_image)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
       details.name,
       code,
       details.address || null,
       details.doctorName || null,
       details.qualification || null,
-      details.regNo || null
+      details.regNo || null,
+      details.bannerImage || null
     );
 
     const hospitalId = Number(result.lastInsertRowid);
@@ -99,18 +102,48 @@ function createClinic(userId, details) {
 }
 
 function updateClinic(hospitalId, details) {
+  // bannerImage is only overwritten when a new one is explicitly sent -
+  // this lets "edit clinic" (name/address etc.) work without silently
+  // wiping out a banner that was already uploaded.
+  if (details.bannerImage !== undefined) {
+    db.prepare(`
+      UPDATE hospitals
+      SET name = ?, address = ?, doctor_name = ?, qualification = ?, reg_no = ?, banner_image = ?
+      WHERE id = ?
+    `).run(
+      details.name,
+      details.address || null,
+      details.doctorName || null,
+      details.qualification || null,
+      details.regNo || null,
+      details.bannerImage || null,
+      hospitalId
+    );
+  } else {
+    db.prepare(`
+      UPDATE hospitals
+      SET name = ?, address = ?, doctor_name = ?, qualification = ?, reg_no = ?
+      WHERE id = ?
+    `).run(
+      details.name,
+      details.address || null,
+      details.doctorName || null,
+      details.qualification || null,
+      details.regNo || null,
+      hospitalId
+    );
+  }
+}
+
+// Soft-delete: the clinic and its data stay in the database (nothing is
+// actually erased) but it stops showing up in listClinicsForUser, and
+// its login code stops working.
+function archiveClinic(hospitalId) {
   db.prepare(`
     UPDATE hospitals
-    SET name = ?, address = ?, doctor_name = ?, qualification = ?, reg_no = ?
+    SET deleted_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).run(
-    details.name,
-    details.address || null,
-    details.doctorName || null,
-    details.qualification || null,
-    details.regNo || null,
-    hospitalId
-  );
+  `).run(hospitalId);
 }
 
 module.exports = {
@@ -118,4 +151,5 @@ module.exports = {
   getClinicForUser,
   createClinic,
   updateClinic,
+  archiveClinic,
 };

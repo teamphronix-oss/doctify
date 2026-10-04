@@ -165,6 +165,7 @@ interface ApiClinic {
   doctorName: string;
   qualification: string;
   regNo: string;
+  bannerImage?: string;
   role: string;
 }
 
@@ -176,6 +177,7 @@ function adaptClinic(c: ApiClinic): Clinic {
     doctorName: c.doctorName || '',
     qualification: c.qualification || '',
     regNo: c.regNo || '',
+    bannerImage: c.bannerImage || '',
     code: c.code,
     role: c.role,
   };
@@ -235,6 +237,7 @@ export interface ClinicDetailsPayload {
   doctorName?: string;
   qualification?: string;
   regNo?: string;
+  bannerImage?: string; // data: URL; omit this field entirely to leave an existing banner untouched
 }
 
 // Adds a brand-new clinic (the doctor becomes its owner). It starts
@@ -256,6 +259,17 @@ export async function updateClinic(id: string, details: ClinicDetailsPayload): P
     body: JSON.stringify(details),
   }));
   return adaptClinic(row);
+}
+
+// Removes a clinic (kept in the database, just hidden - its login code
+// stops working). Throws with the backend's message if this is the
+// doctor's only clinic, since that would lock them out.
+export async function deleteClinic(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/clinics/${id}`, { method: 'DELETE' });
+  if (!res.ok && res.status !== 204) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `Could not remove clinic (${res.status}).`);
+  }
 }
 
 // Switches the active clinic WITHOUT logging out - only succeeds if the

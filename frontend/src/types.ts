@@ -31,6 +31,7 @@ export interface Clinic {
   regNo: string;
   code?: string;   // the clinic's login code (shown so it can be shared/noted down)
   role?: string;   // this user's role in this clinic (e.g. 'owner', 'doctor')
+  bannerImage?: string; // letterhead image (data: URL) shown at the top of prescriptions
 }
 
 export interface FamilyMember {

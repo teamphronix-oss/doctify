@@ -420,6 +420,7 @@ addColumnIfMissing('hospitals', 'address', 'TEXT');
 addColumnIfMissing('hospitals', 'doctor_name', 'TEXT');
 addColumnIfMissing('hospitals', 'qualification', 'TEXT');
 addColumnIfMissing('hospitals', 'reg_no', 'TEXT');
+addColumnIfMissing('hospitals', 'banner_image', 'TEXT');  // data: URL, shown as the prescription letterhead
 
 // A doctor logs in with just user code + PIN, so a user code must be
 // unique across the whole system.

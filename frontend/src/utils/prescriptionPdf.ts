@@ -195,29 +195,37 @@ function buildPrescriptionHtml(user: User, patient: Patient) {
     <div class="paper">
 
       <header class="letterhead">
-        <div class="head-left">
-          <div class="clinic">
-            ${escapeHtml(user.activeClinic.name)}
+        ${user.activeClinic.bannerImage ? `
+          <img
+            src="${user.activeClinic.bannerImage}"
+            alt="${escapeHtml(user.activeClinic.name)}"
+            class="banner-image"
+          />
+        ` : `
+          <div class="head-left">
+            <div class="clinic">
+              ${escapeHtml(user.activeClinic.name)}
+            </div>
+
+            <div class="address">
+              ${escapeHtml(user.activeClinic.address)}
+            </div>
           </div>
 
-          <div class="address">
-            ${escapeHtml(user.activeClinic.address)}
-          </div>
-        </div>
+          <div class="doctor">
+            <div class="doctor-name">
+              ${escapeHtml(user.activeClinic.doctorName)}
+            </div>
 
-        <div class="doctor">
-          <div class="doctor-name">
-            ${escapeHtml(user.activeClinic.doctorName)}
-          </div>
+            <div>
+              ${escapeHtml(user.activeClinic.qualification)}
+            </div>
 
-          <div>
-            ${escapeHtml(user.activeClinic.qualification)}
+            <div>
+              Reg. No: ${escapeHtml(user.activeClinic.regNo)}
+            </div>
           </div>
-
-          <div>
-            Reg. No: ${escapeHtml(user.activeClinic.regNo)}
-          </div>
-        </div>
+        `}
       </header>
 
       <div class="accent"></div>
@@ -337,6 +345,14 @@ body {
   justify-content: space-between;
   gap: 28px;
   padding: 34px 0 22px;
+}
+
+.banner-image {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+  object-position: left center;
 }
 
 .clinic {

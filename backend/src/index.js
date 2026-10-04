@@ -9,9 +9,10 @@ const reportsRouter = require('./routes/reports');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '3mb' }));
 
 app.use('/auth', require('./routes/auth'));
+app.use('/admin', require('./routes/admin'));
 app.use('/clinics', requireAuth, require('./routes/clinics'));
 app.use('/patients', requireAuth, requireClinic, require('./routes/patients'));
 app.use('/visits', requireAuth, requireClinic, require('./routes/visits'));
